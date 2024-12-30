@@ -1,5 +1,5 @@
 -- team.lua
-local Player = require 'src.player'  -- Make sure this path matches your file structure
+local Player = require 'player'  -- Make sure this path matches your file structure
 
 -- List of first names and last names for random generation
 local firstNames = {
@@ -20,18 +20,21 @@ local Team = {
     losses = 0,
     roster = {},
     overall = 50,
+    conference = "",  -- Added conference property
     -- Add salary cap and budget management
     salaryCap = 100000000,  -- $100M salary cap
     currentSalary = 0
 }
 
-function Team:new(name, targetRating)
+-- Updated constructor to accept conference parameter
+function Team:new(name, targetRating, conference)
     local team = setmetatable({}, { __index = Team })
     team.name = name
     team.wins = 0
     team.losses = 0
     team.roster = {}
     team.targetRating = targetRating  -- Store the desired team rating
+    team.conference = conference or "Unknown"  -- Store the conference, with fallback
     
     -- Generate initial roster
     team:generateStartingLineup()
@@ -130,11 +133,11 @@ function Team:getBestPlayerAtPosition(position)
     return bestPlayer
 end
 
--- Remove the simpler displayRoster() function and keep the detailed one:
+-- Updated displayRoster to include conference information
 function Team:displayRoster()
-    -- Display team information
-    local info = string.format("\n%s (Overall: %d)\nRecord: %d-%d\n\nRoster:\n",
-        self.name, self.overall, self.wins, self.losses)
+    -- Display team information including conference
+    local info = string.format("\n%s (%s Conference)\nOverall: %d\nRecord: %d-%d\n\nRoster:\n",
+        self.name, self.conference, self.overall, self.wins, self.losses)
     
     -- Display each player's information
     for _, player in ipairs(self.roster) do

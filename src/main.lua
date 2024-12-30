@@ -4,6 +4,12 @@ package.path = "./src/?.lua;" .. package.path
 local Player = require 'player'
 local Team = require 'team'
 
+-- Define conferences at the top level for easy reference
+local CONFERENCES = {
+    EAST = "Eastern",
+    WEST = "Western"
+}
+
 -- main.lua
 local gameState = {
     currentScreen = "menu",  -- menu, team_select, game
@@ -14,36 +20,65 @@ local gameState = {
     totalWeeks = 15
 }
 
-
--- Initialize teams
+-- Initialize teams with conference assignments
 local function initTeams()
     local teams = {
-        {name = "Warriors", overall = 98},  -- Championship contender
-        {name = "Eagles", overall = 95},    -- Elite team
-        {name = "Suns", overall = 92},      -- Strong contender
-        {name = "Knights", overall = 88},    -- Playoff team
-        {name = "Dragons", overall = 85},    -- Solid team
-        {name = "Phoenix", overall = 82},    -- Above average
-        {name = "Lions", overall = 78},      -- Average team
-        {name = "Tigers", overall = 75},     -- Average team
-        {name = "Bears", overall = 72},      -- Below average
-        {name = "Hawks", overall = 70},      -- Struggling team
-        {name = "Wolves", overall = 68},     -- Rebuilding
-        {name = "Panthers", overall = 65},   -- Weak team
-        {name = "Jaguars", overall = 62},    -- Very weak
-        {name = "Cobras", overall = 58},     -- Bottom tier
-        {name = "Vipers", overall = 55},     -- Bottom tier
-        {name = "Ravens", overall = 52}      -- Worst team
+        -- Eastern Conference teams
+        {name = "Warriors", overall = 98, conference = CONFERENCES.EAST},
+        {name = "Eagles", overall = 95, conference = CONFERENCES.EAST},
+        {name = "Dragons", overall = 85, conference = CONFERENCES.EAST},
+        {name = "Phoenix", overall = 82, conference = CONFERENCES.EAST},
+        {name = "Lions", overall = 78, conference = CONFERENCES.EAST},
+        {name = "Tigers", overall = 75, conference = CONFERENCES.EAST},
+        {name = "Bears", overall = 72, conference = CONFERENCES.EAST},
+        {name = "Hawks", overall = 70, conference = CONFERENCES.EAST},
+        {name = "Wolves", overall = 68, conference = CONFERENCES.EAST},
+        {name = "Panthers", overall = 65, conference = CONFERENCES.EAST},
+        {name = "Jaguars", overall = 62, conference = CONFERENCES.EAST},
+        {name = "Cobras", overall = 58, conference = CONFERENCES.EAST},
+        {name = "Vipers", overall = 55, conference = CONFERENCES.EAST},
+        {name = "Ravens", overall = 52, conference = CONFERENCES.EAST},
+        -- Western Conference teams
+        {name = "Sharks", overall = 98, conference = CONFERENCES.WEST},
+        {name = "Aces", overall = 95, conference = CONFERENCES.WEST},
+        {name = "Sonics", overall = 92, conference = CONFERENCES.WEST},
+        {name = "Giants", overall = 88, conference = CONFERENCES.WEST},
+        {name = "Canadiens", overall = 85, conference = CONFERENCES.WEST},
+        {name = "Raptors", overall = 82, conference = CONFERENCES.WEST},
+        {name = "Wizards", overall = 78, conference = CONFERENCES.WEST},
+        {name = "Vultures", overall = 75, conference = CONFERENCES.WEST},
+        {name = "Pythons", overall = 72, conference = CONFERENCES.WEST},
+        {name = "Terriers", overall = 70, conference = CONFERENCES.WEST},
+        {name = "Bucks", overall = 68, conference = CONFERENCES.WEST},
+        {name = "Bulls", overall = 65, conference = CONFERENCES.WEST},
+        {name = "Pistons", overall = 62, conference = CONFERENCES.WEST},
+        {name = "Pacers", overall = 58, conference = CONFERENCES.WEST},
+        {name = "Packers", overall = 55, conference = CONFERENCES.WEST},
+        {name = "Vikings", overall = 52, conference = CONFERENCES.WEST}
     }
     
     for _, teamData in ipairs(teams) do
-        -- Use the imported Team class constructor
-        local team = Team:new(teamData.name, teamData.overall)
+        -- Create team instance with conference data
+        local team = Team:new(teamData.name, teamData.overall, teamData.conference)
         table.insert(gameState.teams, team)
     end
 end
 
--- Generate season schedule
+-- Helper function to group teams by conference
+local function getTeamsByConference()
+    local conferences = {
+        [CONFERENCES.EAST] = {},
+        [CONFERENCES.WEST] = {}
+    }
+    
+    for _, team in ipairs(gameState.teams) do
+        table.insert(conferences[team.conference], team)
+    end
+    
+    return conferences
+end
+
+-- Generate season schedule (unchanged)
 local function generateSchedule()
     gameState.schedule = {}
     print("Generating schedule...") -- Debug print
@@ -59,7 +94,7 @@ local function generateSchedule()
         end
         
         -- Match teams randomly
-        while #available > 1 do  -- Changed from > 0 to ensure pairs
+        while #available > 1 do
             local team1Index = table.remove(available, love.math.random(#available))
             local team2Index = table.remove(available, love.math.random(#available))
             
@@ -74,21 +109,15 @@ local function generateSchedule()
         
         gameState.schedule[week] = weekGames
         print(string.format("Week %d schedule generated with %d games", 
-            week, #weekGames)) -- Debug print
+            week, #weekGames))
     end
 end
 
--- Simulate a game between two teams
+-- Simulate a game between two teams (unchanged)
 local function simulateGame(team1, team2)
-    -- Calculate win probability based on team ratings
     local ratingDiff = team1.overall - team2.overall
-    -- Convert rating difference to win probability
-    -- Using a logistic function with steeper curve (changed from /25 to /15)
-    -- and adding a base advantage for higher-rated teams
     local baseWinProb = 1 / (1 + math.exp(-ratingDiff / 15))
-    -- Add slight boost to higher-rated teams to reduce variance
     local winProbability = baseWinProb + (ratingDiff > 0 and 0.1 or 0)
-    -- Clamp probability between 0.05 and 0.95 to prevent guaranteed wins/losses
     winProbability = math.min(0.95, math.max(0.05, winProbability))
     
     if love.math.random() < winProbability then
@@ -105,7 +134,7 @@ end
 -- LÖVE callback functions
 function love.load()
     love.window.setMode(800, 600)
-    math.randomseed(os.time())  -- Set random seed
+    math.randomseed(os.time())
     
     print("Initializing game...")
     initTeams()
@@ -115,7 +144,7 @@ function love.load()
     print("Schedule generated for " .. gameState.totalWeeks .. " weeks")
 end
 
--- Helper function to check if mouse is over text
+-- Helper function to check if mouse is over text (unchanged)
 local function isMouseOver(x, y, width, height)
     local mouseX, mouseY = love.mouse.getPosition()
     return mouseX >= x and mouseX <= x + width and
@@ -124,17 +153,31 @@ end
 
 function love.mousepressed(x, y, button, istouch, presses)
     if gameState.currentScreen == "team_select" and button == 1 then
-        for i, team in ipairs(gameState.teams) do
-            local teamY = 70 + i * 20
-            if isMouseOver(350, teamY, 200, 20) then
+        -- Get teams grouped by conference
+        local conferences = getTeamsByConference()
+        local currentY = 70
+        
+        -- Check Eastern Conference teams
+        for _, team in ipairs(conferences[CONFERENCES.EAST]) do
+            if isMouseOver(350, currentY, 200, 20) then
                 gameState.playerTeam = team
-                -- Add these debug lines
-                print("Selected team:", team.name)
-                print("Team methods:", team.displayRoster)
-                print("Team overall:", team.overall)
                 gameState.currentScreen = "game"
                 break
             end
+            currentY = currentY + 20
+        end
+        
+        -- Add spacing between conferences
+        currentY = currentY + 20
+        
+        -- Check Western Conference teams
+        for _, team in ipairs(conferences[CONFERENCES.WEST]) do
+            if isMouseOver(350, currentY, 200, 20) then
+                gameState.playerTeam = team
+                gameState.currentScreen = "game"
+                break
+            end
+            currentY = currentY + 20
         end
     end
 end
@@ -145,55 +188,102 @@ function love.draw()
         love.graphics.print("Press ENTER to start", 350, 300)
     
     elseif gameState.currentScreen == "team_select" then
-        love.graphics.print("Select your team:", 350, 50)
-        for i, team in ipairs(gameState.teams) do
-            local y = 70 + i * 20
-            -- Highlight team name if mouse is over it
-            if isMouseOver(350, y, 200, 20) then
-                love.graphics.setColor(0, 1, 0)  -- Green highlight
+        love.graphics.print("Select your team:", 350, 30)
+        
+        -- Group teams by conference for display
+        local conferences = getTeamsByConference()
+        local yOffset = 70
+        
+        -- Draw Eastern Conference teams
+        love.graphics.setColor(0.8, 0.8, 1) -- Light blue for conference header
+        love.graphics.print("Eastern Conference", 350, yOffset - 20)
+        love.graphics.setColor(1, 1, 1)
+        
+        for _, team in ipairs(conferences[CONFERENCES.EAST]) do
+            if isMouseOver(350, yOffset, 200, 20) then
+                love.graphics.setColor(0, 1, 0)
             end
-            -- Display team name and overall rating
-            love.graphics.print(string.format("%s (Overall: %d)", team.name, team.overall), 350, y)
-            love.graphics.setColor(1, 1, 1)  -- Reset color
+            love.graphics.print(string.format("%s (Overall: %d)", team.name, team.overall), 350, yOffset)
+            love.graphics.setColor(1, 1, 1)
+            yOffset = yOffset + 20
+        end
+        
+        -- Add spacing between conferences
+        yOffset = yOffset + 20
+        
+        -- Draw Western Conference teams
+        love.graphics.setColor(0.8, 0.8, 1)
+        love.graphics.print("Western Conference", 350, yOffset - 20)
+        love.graphics.setColor(1, 1, 1)
+        
+        for _, team in ipairs(conferences[CONFERENCES.WEST]) do
+            if isMouseOver(350, yOffset, 200, 20) then
+                love.graphics.setColor(0, 1, 0)
+            end
+            love.graphics.print(string.format("%s (Overall: %d)", team.name, team.overall), 350, yOffset)
+            love.graphics.setColor(1, 1, 1)
+            yOffset = yOffset + 20
         end
     
     elseif gameState.currentScreen == "game" then
-        -- Display current week and standings
-        love.graphics.print("Week " .. gameState.currentWeek .. "/" .. gameState.totalWeeks, 50, 50)
+        -- Display current week
+        love.graphics.print("Week " .. gameState.currentWeek .. "/" .. gameState.totalWeeks, 50, 30)
         
-        -- Add error checking for playerTeam
         if gameState.playerTeam then
-            love.graphics.print(string.format("Your team: %s", gameState.playerTeam.name), 50, 70)
+            love.graphics.print(string.format("Your team: %s (%s Conference)", 
+                gameState.playerTeam.name, gameState.playerTeam.conference), 50, 50)
+            
             if type(gameState.playerTeam.displayRoster) == "function" then
                 love.graphics.print(gameState.playerTeam:displayRoster(), 400, 150)
             else
                 love.graphics.print("Error: displayRoster not available", 400, 150)
-                print("PlayerTeam type:", type(gameState.playerTeam))
-                print("PlayerTeam methods:", gameState.playerTeam)
             end
-        else
-            love.graphics.print("No team selected", 50, 70)
         end
         
-        -- Display standings
-        love.graphics.print("League Standings:", 50, 130)
-        local y = 150
-        -- Sort teams by wins for standings
-        local sortedTeams = {}
-        for _, team in ipairs(gameState.teams) do
-            table.insert(sortedTeams, team)
-        end
-        table.sort(sortedTeams, function(a, b) 
+        -- Display standings by conference
+        local conferences = getTeamsByConference()
+        local xOffset = 50
+        
+        -- Eastern Conference standings
+        love.graphics.setColor(0.8, 0.8, 1)
+        love.graphics.print("Eastern Conference Standings:", xOffset, 90)
+        love.graphics.setColor(1, 1, 1)
+        
+        local yOffset = 110
+        local eastTeams = conferences[CONFERENCES.EAST]
+        table.sort(eastTeams, function(a, b)
             if a.wins == b.wins then
                 return a.losses < b.losses
             end
             return a.wins > b.wins
         end)
         
-        for _, team in ipairs(sortedTeams) do
-            love.graphics.print(string.format("%s: %d-%d (Overall: %d)", 
-                team.name, team.wins, team.losses, team.overall), 50, y)
-            y = y + 20
+        for _, team in ipairs(eastTeams) do
+            love.graphics.print(string.format("%s: %d-%d (Overall: %d)",
+                team.name, team.wins, team.losses, team.overall), xOffset, yOffset)
+            yOffset = yOffset + 20
+        end
+        
+        -- Western Conference standings
+        xOffset = 400  -- Move to right side of screen
+        yOffset = 110
+        
+        love.graphics.setColor(0.8, 0.8, 1)
+        love.graphics.print("Western Conference Standings:", xOffset, 90)
+        love.graphics.setColor(1, 1, 1)
+        
+        local westTeams = conferences[CONFERENCES.WEST]
+        table.sort(westTeams, function(a, b)
+            if a.wins == b.wins then
+                return a.losses < b.losses
+            end
+            return a.wins > b.wins
+        end)
+        
+        for _, team in ipairs(westTeams) do
+            love.graphics.print(string.format("%s: %d-%d (Overall: %d)",
+                team.name, team.wins, team.losses, team.overall), xOffset, yOffset)
+            yOffset = yOffset + 20
         end
         
         if gameState.currentWeek < gameState.totalWeeks then
@@ -210,7 +300,6 @@ function love.keypressed(key)
     
     elseif gameState.currentScreen == "game" and key == "space" then
         if gameState.currentWeek <= gameState.totalWeeks then
-            -- Add error checking
             local weekGames = gameState.schedule[gameState.currentWeek]
             if not weekGames then
                 print(string.format("Error: No games found for week %d", 
