@@ -30,9 +30,23 @@ local gameState = {
             },
             current = 1
         },
+        audio = {
+            masterVolume = 1.0,
+            musicVolume = 0.7
+        },
         fullscreen = false
     }
 }
+
+local audioState = {
+    music = nil,
+    settings = {
+        masterVolume = 1.0,
+        musicVolume = 0.7
+    }
+}
+
+
 
 -- Settings management functions
 local function applySettings()
@@ -43,11 +57,20 @@ local function applySettings()
     )
 end
 
+-- Add function to update audio volumes
+local function updateVolumes()
+    if audioState.music then
+        audioState.music:setVolume(gameState.settings.audio.masterVolume * gameState.settings.audio.musicVolume)
+    end
+end
+
 local function saveSettings()
     local success, message = love.filesystem.write("settings.txt", string.format(
-        "%d,%s",
+        "%d,%s,%.2f,%.2f",
         gameState.settings.resolution.current,
-        tostring(gameState.settings.fullscreen)
+        tostring(gameState.settings.fullscreen),
+        gameState.settings.audio.masterVolume,
+        gameState.settings.audio.musicVolume
     ))
     return success
 end
@@ -55,15 +78,31 @@ end
 local function loadSettings()
     if love.filesystem.getInfo("settings.txt") then
         local content = love.filesystem.read("settings.txt")
-        local res, full = content:match("(%d+),(%a+)")
+        local res, full, master, music = content:match("(%d+),(%a+),([-0-9.]+),([-0-9.]+)")
         if res and full then
             gameState.settings.resolution.current = tonumber(res)
             gameState.settings.fullscreen = full == "true"
+            gameState.settings.audio.masterVolume = tonumber(master) or 1.0
+            gameState.settings.audio.musicVolume = tonumber(music) or 0.7
             applySettings()
+            updateVolumes()
         end
     end
 end
 
+-- Add this function to initialize audio
+local function initAudio()
+    -- Load the music file
+    audioState.music = love.audio.newSource("assets/music/mainmenu.mp3", "stream")
+    audioState.music:setLooping(true)
+    
+    -- Set initial volumes
+    audioState.music:seek(0, "seconds")
+    audioState.music:setVolume(gameState.settings.audio.masterVolume * gameState.settings.audio.musicVolume)
+    
+    -- Start playing
+    audioState.music:play()
+end
 -- Initialize teams with conference assignments
 local function initTeams()
     local teams = {
@@ -171,10 +210,19 @@ local function isMouseOver(x, y, width, height)
 end
 
 function love.load()
+    print("Current directory:", love.filesystem.getWorkingDirectory())
+    print("Source base directory:", love.filesystem.getSource())
+    -- Try to list files in the assets directory
+    local files = love.filesystem.getDirectoryItems("assets")
+    print("Files in assets directory:")
+    for _, file in ipairs(files) do
+        print(file)
+    end
     loadSettings()
     math.randomseed(os.time())
     initTeams()
     generateSchedule()
+    initAudio()
 end
 
 function love.mousepressed(x, y, button, istouch, presses)
@@ -191,15 +239,37 @@ function love.mousepressed(x, y, button, istouch, presses)
             end
         end
         
+        -- Volume sliders
+        local sliderY = yStart + 150
+        local sliderWidth = 200
+        
+        -- Master volume slider
+        if isMouseOver(centerX - 100, sliderY, sliderWidth, 25) then
+            local mouseX = love.mouse.getX()
+            local volume = math.max(0, math.min(1, (mouseX - (centerX - 100)) / sliderWidth))
+            gameState.settings.audio.masterVolume = volume
+            updateVolumes()
+            saveSettings()
+        end
+        
+        -- Music volume slider
+        if isMouseOver(centerX - 100, sliderY + 50, sliderWidth, 25) then
+            local mouseX = love.mouse.getX()
+            local volume = math.max(0, math.min(1, (mouseX - (centerX - 100)) / sliderWidth))
+            gameState.settings.audio.musicVolume = volume
+            updateVolumes()
+            saveSettings()
+        end
+        
         -- Fullscreen toggle
-        if isMouseOver(centerX - 100, yStart + 150, 200, 25) then
+        if isMouseOver(centerX - 100, sliderY + 100, 200, 25) then
             gameState.settings.fullscreen = not gameState.settings.fullscreen
             applySettings()
             saveSettings()
         end
         
         -- Back button
-        if isMouseOver(centerX - 50, yStart + 200, 100, 25) then
+        if isMouseOver(centerX - 50, sliderY + 150, 100, 25) then
             gameState.currentScreen = "menu"
         end
     
@@ -263,7 +333,6 @@ function love.keypressed(key)
         end
     end
 end
-
 function love.draw()
     if gameState.currentScreen == "menu" then
         local centerX = love.graphics.getWidth() / 2
@@ -271,7 +340,7 @@ function love.draw()
         love.graphics.print("Press ENTER to start", centerX - 50, 300)
         love.graphics.print("Press S for settings", centerX - 50, 330)
         love.graphics.print("Press ESC to quit", centerX - 50, 360)
-        
+
     elseif gameState.currentScreen == "settings" then
         local centerX = love.graphics.getWidth() / 2
         love.graphics.print("Settings", centerX - 30, 150)
@@ -288,14 +357,30 @@ function love.draw()
             love.graphics.setColor(1, 1, 1)
         end
         
+        -- Volume controls
+        local sliderY = yStart + 150
+        local sliderWidth = 200
+        
+        -- Master volume
+        love.graphics.print("Master Volume:", centerX - 100, sliderY - 20)
+        love.graphics.rectangle("line", centerX - 100, sliderY, sliderWidth, 20)
+        love.graphics.rectangle("fill", centerX - 100, sliderY, 
+            sliderWidth * gameState.settings.audio.masterVolume, 20)
+        
+        -- Music volume
+        love.graphics.print("Music Volume:", centerX - 100, sliderY + 30)
+        love.graphics.rectangle("line", centerX - 100, sliderY + 50, sliderWidth, 20)
+        love.graphics.rectangle("fill", centerX - 100, sliderY + 50, 
+            sliderWidth * gameState.settings.audio.musicVolume, 20)
+        
         -- Fullscreen toggle
-        love.graphics.print("Fullscreen:", centerX - 100, yStart + 120)
+        love.graphics.print("Fullscreen:", centerX - 100, sliderY + 80)
         love.graphics.setColor(gameState.settings.fullscreen and {0, 1, 0} or {1, 1, 1})
-        love.graphics.print(tostring(gameState.settings.fullscreen), centerX - 100, yStart + 150)
+        love.graphics.print(tostring(gameState.settings.fullscreen), centerX - 100, sliderY + 100)
         love.graphics.setColor(1, 1, 1)
         
         -- Back button
-        love.graphics.print("Back to Menu (ESC)", centerX - 50, yStart + 200)
+        love.graphics.print("Back to Menu (ESC)", centerX - 50, sliderY + 150)
         
     elseif gameState.currentScreen == "team_select" then
         love.graphics.print("Select your team:", 50, 30)
@@ -406,11 +491,15 @@ function love.keypressed(key)
     if gameState.currentScreen == "menu" then
         if key == "return" then
             gameState.currentScreen = "team_select"
-        elseif key == "s" or key == "S" then  -- Add support for both upper and lowercase
+        elseif key == "s" or key == "S" then
             gameState.currentScreen = "settings"
-            print("Entering settings screen") -- Debug print
         elseif key == "escape" then
             love.event.quit()
+        end
+    elseif gameState.currentScreen == "team_select" then
+        -- Stop music when entering game
+        if audioState.music then
+            audioState.music:stop()
         end
     elseif gameState.currentScreen == "settings" then
         if key == "escape" then
