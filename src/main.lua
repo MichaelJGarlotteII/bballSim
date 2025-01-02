@@ -13,6 +13,7 @@ local CONFERENCES = {
 -- main.lua
 local gameState = {
     currentScreen = "menu",  -- menu, team_select, game, settings
+    previousScreen = "menu",
     teams = {},
     playerTeam = nil,
     schedule = {},
@@ -303,18 +304,31 @@ function love.mousepressed(x, y, button, istouch, presses)
 end
 
 function love.keypressed(key)
+    -- Global settings access
+    if (key == "s" or key == "S") and gameState.currentScreen ~= "settings" then
+        gameState.previousScreen = gameState.currentScreen
+        gameState.currentScreen = "settings"
+        return  -- Exit early to prevent other key handling
+    end
+
     if gameState.currentScreen == "menu" then
         if key == "return" then
             gameState.currentScreen = "team_select"
-        elseif key == "s" then
-            gameState.currentScreen = "settings"
         elseif key == "escape" then
             love.event.quit()
         end
-    
-    elseif gameState.currentScreen == "settings" and key == "escape" then
-        gameState.currentScreen = "menu"
-    
+    elseif gameState.currentScreen == "settings" then
+        if key == "escape" then
+            gameState.currentScreen = gameState.previousScreen
+        end
+    elseif gameState.currentScreen == "team_select" then
+        -- Stop music only when entering game, not when going to settings
+        if key == "return" then
+            gameState.currentScreen = "game"
+            if audioState.music then
+                audioState.music:stop()
+            end
+        end
     elseif gameState.currentScreen == "game" and key == "space" then
         if gameState.currentWeek <= gameState.totalWeeks then
             local weekGames = gameState.schedule[gameState.currentWeek]
@@ -333,7 +347,9 @@ function love.keypressed(key)
         end
     end
 end
+
 function love.draw()
+    -- Draw the current screen content first
     if gameState.currentScreen == "menu" then
         local centerX = love.graphics.getWidth() / 2
         love.graphics.print("Basketball Manager", centerX - 50, 250)
@@ -379,9 +395,11 @@ function love.draw()
         love.graphics.print(tostring(gameState.settings.fullscreen), centerX - 100, sliderY + 100)
         love.graphics.setColor(1, 1, 1)
         
-        -- Back button
-        love.graphics.print("Back to Menu (ESC)", centerX - 50, sliderY + 150)
-        
+        -- Back button with dynamic text
+        love.graphics.print(string.format("Press ESC to return to %s", 
+            gameState.previousScreen:gsub("^%l", string.upper)), 
+            centerX - 50, love.graphics.getHeight() - 50)
+
     elseif gameState.currentScreen == "team_select" then
         love.graphics.print("Select your team:", 50, 30)
         
@@ -418,6 +436,9 @@ function love.draw()
             love.graphics.setColor(1, 1, 1)
             yOffset = yOffset + 25
         end
+
+        -- Add settings reminder at the bottom
+        love.graphics.print("Press S for settings", 50, love.graphics.getHeight() - 30)
     
     elseif gameState.currentScreen == "game" then
         -- Week display
@@ -483,28 +504,40 @@ function love.draw()
         else
             love.graphics.print("Season Complete!", 50, 550)
         end
+
+        -- Add settings reminder at the bottom
+        love.graphics.print("Press S for settings", 50, love.graphics.getHeight() - 30)
     end
 end
 
 
 function love.keypressed(key)
+    -- Global settings access (handle this first)
+    if (key == "s" or key == "S") and gameState.currentScreen ~= "settings" then
+        print("Entering settings from " .. gameState.currentScreen) -- Debug print
+        gameState.previousScreen = gameState.currentScreen
+        gameState.currentScreen = "settings"
+        return -- Stop further key processing
+    end
+    
+    -- Handle other key presses based on current screen
     if gameState.currentScreen == "menu" then
         if key == "return" then
             gameState.currentScreen = "team_select"
-        elseif key == "s" or key == "S" then
-            gameState.currentScreen = "settings"
         elseif key == "escape" then
             love.event.quit()
         end
-    elseif gameState.currentScreen == "team_select" then
-        -- Stop music when entering game
-        if audioState.music then
-            audioState.music:stop()
-        end
     elseif gameState.currentScreen == "settings" then
         if key == "escape" then
-            gameState.currentScreen = "menu"
-            print("Returning to menu") -- Debug print
+            print("Returning to " .. gameState.previousScreen) -- Debug print
+            gameState.currentScreen = gameState.previousScreen
+        end
+    elseif gameState.currentScreen == "team_select" then
+        if key == "return" then
+            gameState.currentScreen = "game"
+            if audioState.music then
+                audioState.music:stop()
+            end
         end
     elseif gameState.currentScreen == "game" and key == "space" then
         if gameState.currentWeek <= gameState.totalWeeks then
