@@ -149,5 +149,23 @@ function Team:displayRoster()
     return info
 end
 
+function Team:getRoster()
+    local formattedRoster = {}
+    
+    for _, player in ipairs(self.roster) do
+        table.insert(formattedRoster, {
+            name = player.name,
+            position = player.position,
+            rating = player:calculateOverall()
+        })
+    end
+    
+    -- Sort by rating (highest to lowest)
+    table.sort(formattedRoster, function(a, b)
+        return a.rating > b.rating
+    end)
+    
+    return formattedRoster
+end
 -- Make the Team class available to other files
 return Team

@@ -440,6 +440,42 @@ function love.draw()
         -- Add settings reminder at the bottom
         love.graphics.print("Press S for settings", 50, love.graphics.getHeight() - 30)
     
+    elseif gameState.currentScreen == "roster" then
+        -- Draw the roster screen
+        love.graphics.print("Team Roster", 50, 30)
+        
+        -- Display team info
+        if gameState.playerTeam then
+            love.graphics.print(string.format("%s (%s Conference)", 
+                gameState.playerTeam.name, gameState.playerTeam.conference), 50, 60)
+            
+            -- Display roster in a formatted way
+            local yOffset = 100
+            if type(gameState.playerTeam.getRoster) == "function" then
+                local roster = gameState.playerTeam:getRoster()
+                love.graphics.print("Players:", 50, yOffset)
+                yOffset = yOffset + 30
+                
+                -- Headers
+                love.graphics.print("Name", 50, yOffset)
+                love.graphics.print("Position", 200, yOffset)
+                love.graphics.print("Rating", 350, yOffset)
+                yOffset = yOffset + 25
+                
+                -- Player listings
+                for _, player in ipairs(roster) do
+                    love.graphics.print(player.name, 50, yOffset)
+                    love.graphics.print(player.position, 200, yOffset)
+                    love.graphics.print(player.rating, 350, yOffset)
+                    yOffset = yOffset + 20
+                end
+            end
+        end
+        
+        -- Navigation instructions
+        love.graphics.print("Press ESC to return to game", 50, love.graphics.getHeight() - 60)
+        love.graphics.print("Press S for settings", 50, love.graphics.getHeight() - 30)
+        
     elseif gameState.currentScreen == "game" then
         -- Week display
         love.graphics.print("Week " .. gameState.currentWeek .. "/" .. gameState.totalWeeks, 50, 30)
@@ -454,7 +490,7 @@ function love.draw()
         local leftColumnX = 50
         local rightColumnX = 400
         
-        -- Eastern Conference (left column)
+        -- Eastern Conference standings
         love.graphics.setColor(0.8, 0.8, 1)
         love.graphics.print("Eastern Conference Standings:", leftColumnX, 90)
         love.graphics.setColor(1, 1, 1)
@@ -474,7 +510,7 @@ function love.draw()
             yOffset = yOffset + 20
         end
         
-        -- Western Conference (right column)
+        -- Western Conference standings
         love.graphics.setColor(0.8, 0.8, 1)
         love.graphics.print("Western Conference Standings:", rightColumnX, 90)
         love.graphics.setColor(1, 1, 1)
@@ -492,12 +528,6 @@ function love.draw()
             yOffset = yOffset + 20
         end
         
-        -- Roster display in right column
-        if gameState.playerTeam and type(gameState.playerTeam.displayRoster) == "function" then
-            love.graphics.print("Team Roster:", rightColumnX + 250, 90)
-            love.graphics.print(gameState.playerTeam:displayRoster(), rightColumnX + 250, 110)
-        end
-        
         -- Simulation prompt
         if gameState.currentWeek < gameState.totalWeeks then
             love.graphics.print("Press SPACE to simulate next week", 50, 550)
@@ -505,19 +535,19 @@ function love.draw()
             love.graphics.print("Season Complete!", 50, 550)
         end
 
-        -- Add settings reminder at the bottom
+        -- Navigation instructions
+        love.graphics.print("Press R to view roster", 50, love.graphics.getHeight() - 60)
         love.graphics.print("Press S for settings", 50, love.graphics.getHeight() - 30)
     end
 end
 
 
 function love.keypressed(key)
-    -- Global settings access (handle this first)
+    -- Global settings access
     if (key == "s" or key == "S") and gameState.currentScreen ~= "settings" then
-        print("Entering settings from " .. gameState.currentScreen) -- Debug print
         gameState.previousScreen = gameState.currentScreen
         gameState.currentScreen = "settings"
-        return -- Stop further key processing
+        return
     end
     
     -- Handle other key presses based on current screen
@@ -529,7 +559,6 @@ function love.keypressed(key)
         end
     elseif gameState.currentScreen == "settings" then
         if key == "escape" then
-            print("Returning to " .. gameState.previousScreen) -- Debug print
             gameState.currentScreen = gameState.previousScreen
         end
     elseif gameState.currentScreen == "team_select" then
@@ -539,21 +568,29 @@ function love.keypressed(key)
                 audioState.music:stop()
             end
         end
-    elseif gameState.currentScreen == "game" and key == "space" then
-        if gameState.currentWeek <= gameState.totalWeeks then
-            local weekGames = gameState.schedule[gameState.currentWeek]
-            if weekGames then
-                for _, game in ipairs(weekGames) do
-                    if game and game[1] and game[2] then
-                        local team1 = gameState.teams[game[1]]
-                        local team2 = gameState.teams[game[2]]
-                        if team1 and team2 then
-                            simulateGame(team1, team2)
+    elseif gameState.currentScreen == "roster" then
+        if key == "escape" then
+            gameState.currentScreen = "game"
+        end
+    elseif gameState.currentScreen == "game" then
+        if key == "space" then
+            if gameState.currentWeek <= gameState.totalWeeks then
+                local weekGames = gameState.schedule[gameState.currentWeek]
+                if weekGames then
+                    for _, game in ipairs(weekGames) do
+                        if game and game[1] and game[2] then
+                            local team1 = gameState.teams[game[1]]
+                            local team2 = gameState.teams[game[2]]
+                            if team1 and team2 then
+                                simulateGame(team1, team2)
+                            end
                         end
                     end
+                    gameState.currentWeek = gameState.currentWeek + 1
                 end
-                gameState.currentWeek = gameState.currentWeek + 1
             end
+        elseif key == "r" then
+            gameState.currentScreen = "roster"
         end
     end
 end
