@@ -63,10 +63,15 @@ function Team:generateStartingLineup()
         -- Create backup with slightly lower rating potential
         local backupName = self:generatePlayerName()
         local backup = Player:new(backupName, pos)
+
+        --Create 3rd string player with even lower rating potential
+        local benchName = self:generatePlayerName()
+        local bench = Player:new(benchName, pos)
         
         -- Add both to roster
         table.insert(self.roster, starter)
         table.insert(self.roster, backup)
+        table.insert(self.roster, bench)
     end
     
     -- Sort roster by overall rating
