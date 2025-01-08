@@ -1,134 +1,89 @@
 -- player.lua
 local Player = {
     name = "",
-    position = "",  -- PG, SG, SF, PF, C
-    ratings = {
-        shooting = 50,
-        defense = 50,
-        playmaking = 50,
-        rebounding = 50,
-        athleticism = 50
-    },
-    age = 20,
-    potential = 50
+    position = "",
+    age = 0,
+    attributes = {},
+    salary = 0
 }
+
+-- Constants for salary calculation
+local SALARY_CAP = 140588000  -- $140.588M
+local MAX_PLAYER_PERCENT = 0.35  -- Maximum individual salary as percentage of cap
+local MIN_PLAYER_PERCENT = 0.01  -- Minimum individual salary as percentage of cap
+
+-- Initialize player attributes
+local function initAttributes()
+    return {
+        shooting = math.random(30, 99),
+        defense = math.random(30, 99),
+        playmaking = math.random(30, 99),
+        athleticism = math.random(30, 99),
+        potential = math.random(30, 99)
+    }
+end
+
+-- Calculate salary based on overall rating
+local function calculateSalary(overall)
+    -- Convert overall rating (0-100) to a percentage of the salary range
+    local ratingPercent = (overall - 65) / 35  -- Normalize ratings around 65-100 range
+    ratingPercent = math.max(0, math.min(1, ratingPercent))  -- Clamp between 0 and 1
+    
+    -- Use exponential scaling to make higher ratings more valuable
+    local scaleFactor = math.exp(ratingPercent * 2) / math.exp(2)
+    
+    -- Calculate salary as a percentage of cap between MIN_PLAYER_PERCENT and MAX_PLAYER_PERCENT
+    local salaryPercent = MIN_PLAYER_PERCENT + (MAX_PLAYER_PERCENT - MIN_PLAYER_PERCENT) * scaleFactor
+    
+    -- Add some randomization (±10%)
+    local randomFactor = 0.9 + math.random() * 0.2
+    local finalSalaryPercent = salaryPercent * randomFactor
+    
+    -- Calculate actual salary
+    return math.floor(SALARY_CAP * finalSalaryPercent)
+end
 
 function Player:new(name, position)
     local player = setmetatable({}, { __index = Player })
     player.name = name
     player.position = position
-    -- Generate random ratings based on position
-    player.ratings = self:generateRatings(position)
-    player.age = math.random(19, 35)
-    player.potential = math.random(40, 99)
+    player.age = math.random(19, 38)
+    player.attributes = initAttributes()
+    
+    -- Calculate initial overall and salary
+    local overall = player:calculateOverall()
+    player.salary = calculateSalary(overall)
+    
     return player
 end
 
-function Player:generateRatings(position)
-    local ratings = {
-        shooting = 50,
-        defense = 50,
-        playmaking = 50,
-        rebounding = 50,
-        athleticism = 50
-    }
-    
-    -- Position-specific rating generation
-    if position == "PG" then
-        -- Point Guards excel at playmaking and are good shooters
-        ratings.playmaking = math.random(60, 95)
-        ratings.shooting = math.random(55, 90)
-        ratings.defense = math.random(40, 85)
-        ratings.rebounding = math.random(30, 70)
-        ratings.athleticism = math.random(50, 90)
-    elseif position == "SG" then
-        -- Shooting Guards are best at shooting
-        ratings.shooting = math.random(65, 95)
-        ratings.playmaking = math.random(50, 85)
-        ratings.defense = math.random(45, 85)
-        ratings.rebounding = math.random(35, 75)
-        ratings.athleticism = math.random(55, 90)
-    elseif position == "SF" then
-        -- Small Forwards are well-rounded
-        ratings.shooting = math.random(50, 90)
-        ratings.playmaking = math.random(45, 85)
-        ratings.defense = math.random(50, 90)
-        ratings.rebounding = math.random(45, 85)
-        ratings.athleticism = math.random(60, 95)
-    elseif position == "PF" then
-        -- Power Forwards focus on rebounding and defense
-        ratings.shooting = math.random(40, 85)
-        ratings.playmaking = math.random(35, 75)
-        ratings.defense = math.random(60, 95)
-        ratings.rebounding = math.random(65, 95)
-        ratings.athleticism = math.random(55, 90)
-    elseif position == "C" then
-        -- Centers dominate rebounding and interior defense
-        ratings.shooting = math.random(35, 75)
-        ratings.playmaking = math.random(30, 70)
-        ratings.defense = math.random(65, 95)
-        ratings.rebounding = math.random(70, 99)
-        ratings.athleticism = math.random(50, 90)
-    end
-    
-    return ratings
-end
-
 function Player:calculateOverall()
-    -- Calculate overall rating based on position-specific weights
-    local weights = self:getPositionWeights(self.position)
-    local total = 0
-    local totalWeight = 0
-    
-    for stat, weight in pairs(weights) do
-        total = total + (self.ratings[stat] * weight)
-        totalWeight = totalWeight + weight
-    end
-    
-    return math.floor(total / totalWeight)
-end
-
-function Player:getPositionWeights(position)
+    -- Calculate weighted average based on position
     local weights = {
-        PG = {
-            shooting = 0.8,
-            defense = 0.6,
-            playmaking = 1.0,
-            rebounding = 0.3,
-            athleticism = 0.7
-        },
-        SG = {
-            shooting = 1.0,
-            defense = 0.7,
-            playmaking = 0.7,
-            rebounding = 0.4,
-            athleticism = 0.8
-        },
-        SF = {
-            shooting = 0.8,
-            defense = 0.8,
-            playmaking = 0.6,
-            rebounding = 0.7,
-            athleticism = 0.9
-        },
-        PF = {
-            shooting = 0.6,
-            defense = 0.9,
-            playmaking = 0.4,
-            rebounding = 1.0,
-            athleticism = 0.8
-        },
-        C = {
-            shooting = 0.4,
-            defense = 1.0,
-            playmaking = 0.3,
-            rebounding = 1.0,
-            athleticism = 0.7
-        }
+        PG = {shooting = 0.3, defense = 0.2, playmaking = 0.3, athleticism = 0.2},
+        SG = {shooting = 0.4, defense = 0.2, playmaking = 0.2, athleticism = 0.2},
+        SF = {shooting = 0.3, defense = 0.3, playmaking = 0.2, athleticism = 0.2},
+        PF = {shooting = 0.2, defense = 0.3, playmaking = 0.2, athleticism = 0.3},
+        C = {shooting = 0.1, defense = 0.4, playmaking = 0.1, athleticism = 0.4}
     }
     
-    return weights[position]
+    local posWeights = weights[self.position]
+    local overall = 0
+    
+    if posWeights then
+        overall = (
+            self.attributes.shooting * posWeights.shooting +
+            self.attributes.defense * posWeights.defense +
+            self.attributes.playmaking * posWeights.playmaking +
+            self.attributes.athleticism * posWeights.athleticism
+        ) * 100
+    end
+    
+    return math.floor(overall)
 end
 
--- This makes the Player class available to other files that require it
+function Player:getSalaryString()
+    return string.format("$%.1fM", self.salary / 1000000)
+end
+
 return Player

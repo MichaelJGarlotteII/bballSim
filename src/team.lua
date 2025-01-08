@@ -5,13 +5,13 @@ local Player = require 'player'  -- Make sure this path matches your file struct
 local firstNames = {
     "James", "Michael", "Chris", "Kevin", "Anthony", "Stephen", "Karl", "Joel",
     "Luka", "Nikola", "Jayson", "Devin", "DeMar", "Trae", "Damian", "Bradley",
-    "Zach", "Donovan", "Ja", "LaMelo", "Russell", "Draymond", "Bam", "Kyle"
+    "Zach", "Donovan", "Ja", "LaMelo", "Russell", "Draymond", "Bum", "Kyle"
 }
 
 local lastNames = {
     "Johnson", "Smith", "Williams", "Brown", "Jones", "Davis", "Miller", "Wilson",
     "Anderson", "Taylor", "Thomas", "Moore", "Martin", "Lee", "Thompson", "White",
-    "Harris", "Clark", "Lewis", "Robinson", "Walker", "Young", "Allen", "King"
+    "Harris", "Clark", "Lewis", "Robinson", "Walker", "Young", "Ayimbadyo", "King"
 }
 
 local Team = {
@@ -22,7 +22,7 @@ local Team = {
     overall = 50,
     conference = "",  -- Added conference property
     -- Add salary cap and budget management
-    salaryCap = 100000000,  -- $100M salary cap
+    salaryCap = 140588000,  -- $100M salary cap
     currentSalary = 0
 }
 
@@ -136,6 +136,32 @@ function Team:getBestPlayerAtPosition(position)
     end
     
     return bestPlayer
+end
+
+-- Calculate total team salary
+function Team:calculateTotalSalary()
+    local total = 0
+    for _, player in ipairs(self.roster) do
+        total = total + player.salary
+    end
+    return total
+end
+
+-- Adjust roster salaries to meet cap requirements
+function Team:adjustSalaries()
+    local total = self:calculateTotalSalary()
+    local salaryFloor = SALARY_CAP * 0.9  -- 90% of cap
+    
+    if total < salaryFloor or total > SALARY_CAP then
+        -- Calculate adjustment factor to get to the middle of the valid range
+        local targetSalary = (salaryFloor + SALARY_CAP) / 2
+        local adjustmentFactor = targetSalary / total
+        
+        -- Adjust all salaries proportionally
+        for _, player in ipairs(self.roster) do
+            player.salary = math.floor(player.salary * adjustmentFactor)
+        end
+    end
 end
 
 -- Updated displayRoster to include conference information

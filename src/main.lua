@@ -449,26 +449,38 @@ function love.draw()
             love.graphics.print(string.format("%s (%s Conference)", 
                 gameState.playerTeam.name, gameState.playerTeam.conference), 50, 60)
             
+            -- Display total salary if calculateTotalSalary exists
+            if type(gameState.playerTeam.calculateTotalSalary) == "function" then
+                local totalSalary = gameState.playerTeam:calculateTotalSalary()
+                if totalSalary then
+                    love.graphics.print(string.format("Total Salary: $%.1fM", totalSalary / 1000000), 50, 80)
+                end
+            end
+            
             -- Display roster in a formatted way
-            local yOffset = 100
+            local yOffset = 120
             if type(gameState.playerTeam.getRoster) == "function" then
                 local roster = gameState.playerTeam:getRoster()
-                love.graphics.print("Players:", 50, yOffset)
-                yOffset = yOffset + 30
                 
                 -- Headers
                 love.graphics.print("Name", 50, yOffset)
                 love.graphics.print("Position", 200, yOffset)
-                love.graphics.print("Rating", 350, yOffset)
+                love.graphics.print("Rating", 300, yOffset)
+                love.graphics.print("Salary", 400, yOffset)
                 yOffset = yOffset + 25
                 
                 -- Player listings
                 for _, player in ipairs(roster) do
-                    love.graphics.print(player.name, 50, yOffset)
-                    love.graphics.print(player.position, 200, yOffset)
-                    love.graphics.print(player.rating, 350, yOffset)
+                    love.graphics.print(player.name or "", 50, yOffset)
+                    love.graphics.print(player.position or "", 200, yOffset)
+                    love.graphics.print(tostring(player.rating or ""), 300, yOffset)
+                    if player.salary then
+                        love.graphics.print(player.salary, 400, yOffset)
+                    end
                     yOffset = yOffset + 20
                 end
+            else
+                love.graphics.print("Roster information not available", 50, yOffset)
             end
         end
         
