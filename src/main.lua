@@ -3,6 +3,7 @@
 package.path = "./src/?.lua;" .. package.path
 local Player = require 'player'
 local Team = require 'team'
+local UIScaling = require 'ui_scaling'
 
 -- Define conferences at the top level for easy reference
 local CONFERENCES = {
@@ -56,6 +57,8 @@ local function applySettings()
         gameState.settings.resolution.options[gameState.settings.resolution.current].height,
         {fullscreen = gameState.settings.fullscreen}
     )
+    -- Update UI scaling
+    UIScaling.init(love.graphics.getWidth(), love.graphics.getHeight())
 end
 
 -- Add function to update audio volumes
@@ -211,6 +214,8 @@ local function isMouseOver(x, y, width, height)
 end
 
 function love.load()
+    -- Initialize UI scaling
+    UIScaling.init(love.graphics.getWidth(), love.graphics.getHeight())
     print("Current directory:", love.filesystem.getWorkingDirectory())
     print("Source base directory:", love.filesystem.getSource())
     -- Try to list files in the assets directory
@@ -227,51 +232,65 @@ function love.load()
 end
 
 function love.mousepressed(x, y, button, istouch, presses)
+    -- Get scale factors once at the start
+    local scaleFactorX = UIScaling.getScaleX()
+    local scaleFactorY = UIScaling.getScaleY()
+    
+    -- Convert mouse coordinates to our scaled coordinate system
+    local scaledX = x / scaleFactorX
+    local scaledY = y / scaleFactorY
+
     if gameState.currentScreen == "settings" and button == 1 then
         local centerX = love.graphics.getWidth() / 2
-        local yStart = 200
+        local scaledCenterX = centerX / scaleFactorX
+        local yStart = 200  -- Base position, unscaled
         
         -- Resolution options
         for i, res in ipairs(gameState.settings.resolution.options) do
-            if isMouseOver(centerX - 100, yStart + (i-1)*30, 200, 25) then
+            if isMouseOverScaled(50, yStart + (i-1)*30, 200, 25) then
                 gameState.settings.resolution.current = i
                 applySettings()
                 saveSettings()
+                -- Re-init UI scaling after resolution change
+                UIScaling.init(love.graphics.getWidth(), love.graphics.getHeight())
+                break
             end
         end
         
         -- Volume sliders
-        local sliderY = yStart + 150
-        local sliderWidth = 200
+        local sliderY = yStart + 150  -- Base position, unscaled
+        local sliderWidth = 200  -- Base width, unscaled
         
         -- Master volume slider
-        if isMouseOver(centerX - 100, sliderY, sliderWidth, 25) then
-            local mouseX = love.mouse.getX()
-            local volume = math.max(0, math.min(1, (mouseX - (centerX - 100)) / sliderWidth))
+        if isMouseOverScaled(50, sliderY, sliderWidth, 25) then
+            local relativeX = scaledX - 50  -- Calculate relative to slider start
+            local volume = math.max(0, math.min(1, relativeX / sliderWidth))
             gameState.settings.audio.masterVolume = volume
             updateVolumes()
             saveSettings()
+            gameState.selectedVolume = "master"
         end
         
         -- Music volume slider
-        if isMouseOver(centerX - 100, sliderY + 50, sliderWidth, 25) then
-            local mouseX = love.mouse.getX()
-            local volume = math.max(0, math.min(1, (mouseX - (centerX - 100)) / sliderWidth))
+        if isMouseOverScaled(50, sliderY + 50, sliderWidth, 25) then
+            local relativeX = scaledX - 50  -- Calculate relative to slider start
+            local volume = math.max(0, math.min(1, relativeX / sliderWidth))
             gameState.settings.audio.musicVolume = volume
             updateVolumes()
             saveSettings()
+            gameState.selectedVolume = "music"
         end
         
         -- Fullscreen toggle
-        if isMouseOver(centerX - 100, sliderY + 100, 200, 25) then
+        if isMouseOverScaled(50, sliderY + 100, 100, 25) then
             gameState.settings.fullscreen = not gameState.settings.fullscreen
             applySettings()
             saveSettings()
         end
         
         -- Back button
-        if isMouseOver(centerX - 50, sliderY + 150, 100, 25) then
-            gameState.currentScreen = "menu"
+        if isMouseOverScaled(scaledCenterX - 50, love.graphics.getHeight() - 60, 100, 25) then
+            gameState.currentScreen = gameState.previousScreen
         end
     
     elseif gameState.currentScreen == "team_select" and button == 1 then
@@ -279,27 +298,115 @@ function love.mousepressed(x, y, button, istouch, presses)
         local leftColumnX = 50
         local rightColumnX = 400
         local yOffset = 90
+        local teamHeight = 25
         
         -- Check Eastern Conference teams
-        for _, team in ipairs(conferences[CONFERENCES.EAST]) do
-            if isMouseOver(leftColumnX, yOffset, 200, 20) then
+        for i, team in ipairs(conferences[CONFERENCES.EAST]) do
+            if isMouseOverScaled(leftColumnX, yOffset + (i-1)*teamHeight, 200, 20) then
                 gameState.playerTeam = team
-                gameState.currentScreen = "game"
+                gameState.selectedTeamIndex = i
+                gameState.selectedConference = CONFERENCES.EAST
+                -- Don't transition immediately, let player confirm with Enter
                 break
             end
-            yOffset = yOffset + 25
         end
         
         -- Check Western Conference teams
-        yOffset = 90
-        for _, team in ipairs(conferences[CONFERENCES.WEST]) do
-            if isMouseOver(rightColumnX, yOffset, 200, 20) then
+        for i, team in ipairs(conferences[CONFERENCES.WEST]) do
+            if isMouseOverScaled(rightColumnX, yOffset + (i-1)*teamHeight, 200, 20) then
                 gameState.playerTeam = team
-                gameState.currentScreen = "game"
+                gameState.selectedTeamIndex = i
+                gameState.selectedConference = CONFERENCES.WEST
+                -- Don't transition immediately, let player confirm with Enter
                 break
             end
-            yOffset = yOffset + 25
         end
+    
+    elseif gameState.currentScreen == "game" and button == 1 then
+        -- Add any game screen specific click handlers
+        local buttonWidth = 150
+        local buttonHeight = 30
+        
+        -- Example: Add a pause button
+        if isMouseOverScaled(50, 550, buttonWidth, buttonHeight) then
+            -- Handle pause functionality
+        end
+        
+        -- Example: Add a menu button
+        if isMouseOverScaled(50, love.graphics.getHeight() - 40, buttonWidth, buttonHeight) then
+            gameState.currentScreen = "menu"
+            if audioState.music then
+                audioState.music:play()
+            end
+        end
+    
+    elseif gameState.currentScreen == "roster" and button == 1 then
+        -- Add roster screen specific click handlers
+        local buttonWidth = 150
+        local buttonHeight = 30
+        
+        -- Back to game button
+        if isMouseOverScaled(50, love.graphics.getHeight() - 40, buttonWidth, buttonHeight) then
+            gameState.currentScreen = "game"
+        end
+    end
+
+    -- Handle volume slider dragging
+    if button == 1 then
+        gameState.isDraggingSlider = false
+        if gameState.currentScreen == "settings" then
+            local centerX = love.graphics.getWidth() / 2
+            local scaleFactorX = UIScaling.getScaleX()
+            local scaledCenterX = centerX / scaleFactorX
+            local sliderY = 350
+            local sliderWidth = 200
+            
+            -- Check both volume sliders
+            if isMouseOverScaled(scaledCenterX - 100, sliderY, sliderWidth, 25) or
+               isMouseOverScaled(scaledCenterX - 100, sliderY + 50, sliderWidth, 25) then
+                gameState.isDraggingSlider = true
+            end
+        end
+    end
+end
+
+function isMouseOverScaled(x, y, width, height)
+    local mouseX, mouseY = love.mouse.getPosition()
+    local scaleFactorX = UIScaling.getScaleX()
+    local scaleFactorY = UIScaling.getScaleY()
+    local scaledMouseX = mouseX / scaleFactorX
+    local scaledMouseY = mouseY / scaleFactorY
+    
+    return scaledMouseX >= x and scaledMouseX <= x + width and
+           scaledMouseY >= y and scaledMouseY <= y + height
+end
+
+-- Add mouse drag handling for sliders
+function love.mousemoved(x, y, dx, dy)
+    if gameState.isDraggingSlider and gameState.currentScreen == "settings" then
+        local scaleFactorX = UIScaling.getScaleX()
+        local scaledX = x / scaleFactorX
+        local baseX = 50  -- Base X position for sliders
+        local sliderWidth = 200  -- Base slider width before scaling
+        
+        -- Calculate volume based on mouse position
+        local volume = math.max(0, math.min(1, (scaledX - baseX) / sliderWidth))
+        
+        -- Update the appropriate volume based on which slider was selected
+        if gameState.selectedVolume == "master" then
+            gameState.settings.audio.masterVolume = volume
+        elseif gameState.selectedVolume == "music" then
+            gameState.settings.audio.musicVolume = volume
+        end
+        
+        updateVolumes()
+    end
+end
+
+function love.mousereleased(x, y, button)
+    if button == 1 and gameState.isDraggingSlider then
+        gameState.isDraggingSlider = false
+        saveSettings()  -- Save settings when done dragging
     end
 end
 
@@ -349,212 +456,270 @@ function love.keypressed(key)
 end
 
 function love.draw()
-    -- Draw the current screen content first
+    -- Set up commonly used fonts
+    local headerFont = UIScaling.getFont(20)
+    local normalFont = UIScaling.getFont(16)
+    local smallFont = UIScaling.getFont(14)
+
     if gameState.currentScreen == "menu" then
+        love.graphics.setFont(headerFont)
+        local menuItems = {
+            {text = "Basketball Manager", yPos = 250},
+            {text = "Press ENTER to start", yPos = 300},
+            {text = "Press S for settings", yPos = 330},
+            {text = "Press ESC to quit", yPos = 360}
+        }
+    
+        -- Calculate center X position once
         local centerX = love.graphics.getWidth() / 2
-        love.graphics.print("Basketball Manager", centerX - 50, 250)
-        love.graphics.print("Press ENTER to start", centerX - 50, 300)
-        love.graphics.print("Press S for settings", centerX - 50, 330)
-        love.graphics.print("Press ESC to quit", centerX - 50, 360)
+    
+        for _, item in ipairs(menuItems) do
+            -- Calculate text width for centering
+            local textWidth = headerFont:getWidth(item.text)
+            -- Position text in center of screen
+            local x = centerX - (textWidth / 2)
+            -- Draw text with scaled Y position
+            love.graphics.print(item.text, x, UIScaling.scaleY(item.yPos))
+        end
 
     elseif gameState.currentScreen == "settings" then
         local centerX = love.graphics.getWidth() / 2
-        love.graphics.print("Settings", centerX - 30, 150)
+        local yStart = UIScaling.scaleY(200)
+        
+        -- Settings header
+        love.graphics.setFont(headerFont)
+        local headerText = "Settings"
+        local textWidth = headerFont:getWidth(headerText)
+        local headerX = centerX - (textWidth / 2)
+        love.graphics.print(headerText, headerX, UIScaling.scaleY(150))
         
         -- Resolution options
-        local yStart = 200
-        love.graphics.print("Resolution:", centerX - 100, yStart - 30)
+        love.graphics.setFont(normalFont)
+        love.graphics.print("Resolution:", UIScaling.scaleX(50), UIScaling.scaleY(170))
+        
         for i, res in ipairs(gameState.settings.resolution.options) do
             local text = string.format("%dx%d", res.width, res.height)
             if i == gameState.settings.resolution.current then
                 love.graphics.setColor(0, 1, 0)
             end
-            love.graphics.print(text, centerX - 100, yStart + (i-1)*30)
+            love.graphics.print(text, UIScaling.scaleX(50), yStart + (i-1) * UIScaling.scaleY(30))
             love.graphics.setColor(1, 1, 1)
         end
         
         -- Volume controls
-        local sliderY = yStart + 150
-        local sliderWidth = 200
+        local sliderY = yStart + UIScaling.scaleY(150)
+        local sliderWidth = UIScaling.scaleX(200)
         
         -- Master volume
-        love.graphics.print("Master Volume:", centerX - 100, sliderY - 20)
-        love.graphics.rectangle("line", centerX - 100, sliderY, sliderWidth, 20)
-        love.graphics.rectangle("fill", centerX - 100, sliderY, 
-            sliderWidth * gameState.settings.audio.masterVolume, 20)
+        love.graphics.print("Master Volume:", UIScaling.scaleX(50), sliderY - UIScaling.scaleY(20))
+        love.graphics.rectangle("line", UIScaling.scaleX(50), sliderY, sliderWidth, UIScaling.scaleY(20))
+        love.graphics.rectangle("fill", UIScaling.scaleX(50), sliderY, 
+            sliderWidth * gameState.settings.audio.masterVolume, UIScaling.scaleY(20))
         
         -- Music volume
-        love.graphics.print("Music Volume:", centerX - 100, sliderY + 30)
-        love.graphics.rectangle("line", centerX - 100, sliderY + 50, sliderWidth, 20)
-        love.graphics.rectangle("fill", centerX - 100, sliderY + 50, 
-            sliderWidth * gameState.settings.audio.musicVolume, 20)
+        love.graphics.print("Music Volume:", UIScaling.scaleX(50), sliderY + UIScaling.scaleY(30))
+        love.graphics.rectangle("line", UIScaling.scaleX(50), sliderY + UIScaling.scaleY(50), sliderWidth, UIScaling.scaleY(20))
+        love.graphics.rectangle("fill", UIScaling.scaleX(50), sliderY + UIScaling.scaleY(50), 
+            sliderWidth * gameState.settings.audio.musicVolume, UIScaling.scaleY(20))
         
         -- Fullscreen toggle
-        love.graphics.print("Fullscreen:", centerX - 100, sliderY + 80)
+        love.graphics.print("Fullscreen:", UIScaling.scaleX(50), sliderY + UIScaling.scaleY(80))
         love.graphics.setColor(gameState.settings.fullscreen and {0, 1, 0} or {1, 1, 1})
-        love.graphics.print(tostring(gameState.settings.fullscreen), centerX - 100, sliderY + 100)
+        love.graphics.print(tostring(gameState.settings.fullscreen), UIScaling.scaleX(150), sliderY + UIScaling.scaleY(80))
         love.graphics.setColor(1, 1, 1)
         
-        -- Back button with dynamic text
-        love.graphics.print(string.format("Press ESC to return to %s", 
-            gameState.previousScreen:gsub("^%l", string.upper)), 
-            centerX - 50, love.graphics.getHeight() - 50)
+        -- Back button
+        local backText = string.format("Press ESC to return to %s", gameState.previousScreen:gsub("^%l", string.upper))
+        local backWidth = normalFont:getWidth(backText)
+        local backX = centerX - (backWidth / 2)
+        love.graphics.print(backText, backX, UIScaling.scaleY(love.graphics.getHeight() - 50))
 
     elseif gameState.currentScreen == "team_select" then
-        love.graphics.print("Select your team:", 50, 30)
+        love.graphics.setFont(headerFont)
+        love.graphics.print("Select your team:", UIScaling.scaleX(50), UIScaling.scaleY(30))
         
         local conferences = getTeamsByConference()
-        local leftColumnX = 50
-        local rightColumnX = 400
+        local leftColumnX = UIScaling.scaleX(50)
+        local rightColumnX = UIScaling.scaleX(400)
         
-        -- Eastern Conference (left column)
+        -- Conference headers
+        love.graphics.setFont(normalFont)
         love.graphics.setColor(0.8, 0.8, 1)
-        love.graphics.print("Eastern Conference", leftColumnX, 70)
+        love.graphics.print("Eastern Conference", leftColumnX, UIScaling.scaleY(70))
+        love.graphics.print("Western Conference", rightColumnX, UIScaling.scaleY(70))
         love.graphics.setColor(1, 1, 1)
         
-        local yOffset = 90
+        -- Eastern Conference teams
+        local yOffset = UIScaling.scaleY(90)
+        local lineHeight = UIScaling.scaleY(25)
         for _, team in ipairs(conferences[CONFERENCES.EAST]) do
-            if isMouseOver(leftColumnX, yOffset, 200, 20) then
+            if isMouseOver(leftColumnX, yOffset, UIScaling.scaleX(200), UIScaling.scaleY(20)) then
                 love.graphics.setColor(0, 1, 0)
             end
-            love.graphics.print(string.format("%s (Overall: %d)", team.name, team.overall), leftColumnX, yOffset)
+            love.graphics.print(string.format("%s (Overall: %d)", team.name, team.overall), 
+                leftColumnX, yOffset)
             love.graphics.setColor(1, 1, 1)
-            yOffset = yOffset + 25
+            yOffset = yOffset + lineHeight
         end
         
-        -- Western Conference (right column)
-        love.graphics.setColor(0.8, 0.8, 1)
-        love.graphics.print("Western Conference", rightColumnX, 70)
-        love.graphics.setColor(1, 1, 1)
-        
-        yOffset = 90
+        -- Western Conference teams
+        yOffset = UIScaling.scaleY(90)
         for _, team in ipairs(conferences[CONFERENCES.WEST]) do
-            if isMouseOver(rightColumnX, yOffset, 200, 20) then
+            if isMouseOver(rightColumnX, yOffset, UIScaling.scaleX(200), UIScaling.scaleY(20)) then
                 love.graphics.setColor(0, 1, 0)
             end
-            love.graphics.print(string.format("%s (Overall: %d)", team.name, team.overall), rightColumnX, yOffset)
+            love.graphics.print(string.format("%s (Overall: %d)", team.name, team.overall), 
+                rightColumnX, yOffset)
             love.graphics.setColor(1, 1, 1)
-            yOffset = yOffset + 25
+            yOffset = yOffset + lineHeight
         end
+        
+        -- Settings reminder
+        love.graphics.setFont(smallFont)
+        love.graphics.print("Press S for settings", UIScaling.scaleX(50), 
+            UIScaling.scaleY(love.graphics.getHeight() - 30))
 
-        -- Add settings reminder at the bottom
-        love.graphics.print("Press S for settings", 50, love.graphics.getHeight() - 30)
-    
-    elseif gameState.currentScreen == "roster" then
-        -- Draw the roster screen
-        love.graphics.print("Team Roster", 50, 30)
-        
-        -- Display team info
-        if gameState.playerTeam then
-            love.graphics.print(string.format("%s (%s Conference)", 
-                gameState.playerTeam.name, gameState.playerTeam.conference), 50, 60)
-            
-            -- Display total salary if calculateTotalSalary exists
-            if type(gameState.playerTeam.calculateTotalSalary) == "function" then
-                local totalSalary = gameState.playerTeam:calculateTotalSalary()
-                if totalSalary then
-                    love.graphics.print(string.format("Total Salary: $%.1fM", totalSalary / 1000000), 50, 80)
-                end
-            end
-            
-            -- Display roster in a formatted way
-            local yOffset = 120
-            if type(gameState.playerTeam.getRoster) == "function" then
-                local roster = gameState.playerTeam:getRoster()
-                
-                -- Headers
-                love.graphics.print("Name", 50, yOffset)
-                love.graphics.print("Position", 200, yOffset)
-                love.graphics.print("Rating", 300, yOffset)
-                love.graphics.print("Salary", 400, yOffset)
-                yOffset = yOffset + 25
-                
-                -- Player listings
-                for _, player in ipairs(roster) do
-                    love.graphics.print(player.name or "", 50, yOffset)
-                    love.graphics.print(player.position or "", 200, yOffset)
-                    love.graphics.print(tostring(player.rating or ""), 300, yOffset)
-                    if player.salary then
-                        love.graphics.print(player.salary, 400, yOffset)
-                    end
-                    yOffset = yOffset + 20
-                end
-            else
-                love.graphics.print("Roster information not available", 50, yOffset)
-            end
-        end
-        
-        -- Navigation instructions
-        love.graphics.print("Press ESC to return to game", 50, love.graphics.getHeight() - 60)
-        love.graphics.print("Press S for settings", 50, love.graphics.getHeight() - 30)
-        
     elseif gameState.currentScreen == "game" then
+        love.graphics.setFont(normalFont)
         -- Week display
-        love.graphics.print("Week " .. gameState.currentWeek .. "/" .. gameState.totalWeeks, 50, 30)
+        love.graphics.print("Week " .. gameState.currentWeek .. "/" .. gameState.totalWeeks, 
+            UIScaling.scaleX(50), UIScaling.scaleY(30))
         
         -- Your team info
         if gameState.playerTeam then
             love.graphics.print(string.format("Your team: %s (%s Conference)", 
-                gameState.playerTeam.name, gameState.playerTeam.conference), 50, 50)
+                gameState.playerTeam.name, gameState.playerTeam.conference), 
+                UIScaling.scaleX(50), UIScaling.scaleY(50))
         end
         
-        -- Two-column layout for standings
-        local leftColumnX = 50
-        local rightColumnX = 400
+        local leftColumnX = UIScaling.scaleX(50)
+        local rightColumnX = UIScaling.scaleX(400)
         
-        -- Eastern Conference standings
+        -- Conference standings headers
+        love.graphics.setFont(headerFont)
         love.graphics.setColor(0.8, 0.8, 1)
-        love.graphics.print("Eastern Conference Standings:", leftColumnX, 90)
+        love.graphics.print("Eastern Conference Standings:", leftColumnX, UIScaling.scaleY(90))
+        love.graphics.print("Western Conference Standings:", rightColumnX, UIScaling.scaleY(90))
         love.graphics.setColor(1, 1, 1)
         
+        -- Display standings
+        love.graphics.setFont(normalFont)
         local conferences = getTeamsByConference()
-        local yOffset = 110
+        local yOffset = UIScaling.scaleY(110)
+        local lineHeight = UIScaling.scaleY(20)
         
-        local eastTeams = conferences[CONFERENCES.EAST]
-        table.sort(eastTeams, function(a, b)
-            if a.wins == b.wins then return a.losses < b.losses end
-            return a.wins > b.wins
-        end)
+        -- Sort teams by wins
+        local function sortTeams(teams)
+            table.sort(teams, function(a, b)
+                if a.wins == b.wins then return a.losses < b.losses end
+                return a.wins > b.wins
+            end)
+            return teams
+        end
         
-        for _, team in ipairs(eastTeams) do
+        -- Eastern Conference standings
+        for _, team in ipairs(sortTeams(conferences[CONFERENCES.EAST])) do
             love.graphics.print(string.format("%s: %d-%d", team.name, team.wins, team.losses), 
                 leftColumnX, yOffset)
-            yOffset = yOffset + 20
+            yOffset = yOffset + lineHeight
         end
         
         -- Western Conference standings
-        love.graphics.setColor(0.8, 0.8, 1)
-        love.graphics.print("Western Conference Standings:", rightColumnX, 90)
-        love.graphics.setColor(1, 1, 1)
-        
-        yOffset = 110
-        local westTeams = conferences[CONFERENCES.WEST]
-        table.sort(westTeams, function(a, b)
-            if a.wins == b.wins then return a.losses < b.losses end
-            return a.wins > b.wins
-        end)
-        
-        for _, team in ipairs(westTeams) do
+        yOffset = UIScaling.scaleY(110)
+        for _, team in ipairs(sortTeams(conferences[CONFERENCES.WEST])) do
             love.graphics.print(string.format("%s: %d-%d", team.name, team.wins, team.losses),
                 rightColumnX, yOffset)
-            yOffset = yOffset + 20
+            yOffset = yOffset + lineHeight
         end
         
-        -- Simulation prompt
+        -- Game controls
+        love.graphics.setFont(smallFont)
         if gameState.currentWeek < gameState.totalWeeks then
-            love.graphics.print("Press SPACE to simulate next week", 50, 550)
+            love.graphics.print("Press SPACE to simulate next week", 
+                UIScaling.scaleX(50), UIScaling.scaleY(550))
         else
-            love.graphics.print("Season Complete!", 50, 550)
+            love.graphics.print("Season Complete!", 
+                UIScaling.scaleX(50), UIScaling.scaleY(550))
         end
-
+        
         -- Navigation instructions
-        love.graphics.print("Press R to view roster", 50, love.graphics.getHeight() - 60)
-        love.graphics.print("Press S for settings", 50, love.graphics.getHeight() - 30)
+        love.graphics.print("Press R to view roster", 
+            UIScaling.scaleX(50), UIScaling.scaleY(love.graphics.getHeight() - 60))
+        love.graphics.print("Press S for settings", 
+            UIScaling.scaleX(50), UIScaling.scaleY(love.graphics.getHeight() - 30))
+
+    elseif gameState.currentScreen == "roster" then
+        love.graphics.setFont(headerFont)
+        love.graphics.print("Team Roster", UIScaling.scaleX(50), UIScaling.scaleY(30))
+        
+        if gameState.playerTeam then
+            love.graphics.setFont(normalFont)
+            -- Team info
+            love.graphics.print(string.format("%s (%s Conference)", 
+                gameState.playerTeam.name, gameState.playerTeam.conference), 
+                UIScaling.scaleX(50), UIScaling.scaleY(60))
+            
+            -- Salary info if available
+            if type(gameState.playerTeam.calculateTotalSalary) == "function" then
+                local totalSalary = gameState.playerTeam:calculateTotalSalary()
+                if totalSalary then
+                    love.graphics.print(string.format("Total Salary: $%.1fM", totalSalary / 1000000), 
+                        UIScaling.scaleX(50), UIScaling.scaleY(80))
+                end
+            end
+            
+            -- Roster display
+            if type(gameState.playerTeam.getRoster) == "function" then
+                local roster = gameState.playerTeam:getRoster()
+                local yOffset = UIScaling.scaleY(120)
+                local columnSpacing = UIScaling.scaleX(150)
+                
+                -- Headers
+                local headers = {"Name", "Position", "Rating", "Salary"}
+                for i, header in ipairs(headers) do
+                    love.graphics.print(header, UIScaling.scaleX(50 + (i-1) * 100), yOffset)
+                end
+                
+                -- Player listings
+                yOffset = yOffset + UIScaling.scaleY(25)
+                for _, player in ipairs(roster) do
+                    love.graphics.print(player.name or "", UIScaling.scaleX(50), yOffset)
+                    love.graphics.print(player.position or "", UIScaling.scaleX(150), yOffset)
+                    love.graphics.print(tostring(player.rating or ""), UIScaling.scaleX(250), yOffset)
+                    if player.salary then
+                        love.graphics.print(string.format("$%.1fM", player.salary / 1000000), 
+                            UIScaling.scaleX(350), yOffset)
+                    end
+                    yOffset = yOffset + UIScaling.scaleY(20)
+                end
+            end
+        end
+        
+        -- Navigation instructions
+        love.graphics.setFont(smallFont)
+        love.graphics.print("Press ESC to return to game", 
+            UIScaling.scaleX(50), UIScaling.scaleY(love.graphics.getHeight() - 60))
+        love.graphics.print("Press S for settings", 
+            UIScaling.scaleX(50), UIScaling.scaleY(love.graphics.getHeight() - 30))
     end
 end
 
 
 function love.keypressed(key)
+    -- Update the isMouseOver function to use scaled coordinates
+    local function isMouseOverScaled(x, y, width, height)
+        local mouseX, mouseY = love.mouse.getPosition()
+        -- Convert mouse coordinates to our scaled coordinate system
+        local scaleFactorX = UIScaling.getScaleX()
+        local scaleFactorY = UIScaling.getScaleY()
+        local scaledMouseX = mouseX / scaleFactorX
+        local scaledMouseY = mouseY / scaleFactorY
+
+
+        return scaledMouseX >= x and scaledMouseX <= x + width and
+               scaledMouseY >= y and scaledMouseY <= y + height
+    end
+
     -- Global settings access
     if (key == "s" or key == "S") and gameState.currentScreen ~= "settings" then
         gameState.previousScreen = gameState.currentScreen
@@ -562,33 +727,97 @@ function love.keypressed(key)
         return
     end
     
-    -- Handle other key presses based on current screen
+    -- Handle screen-specific key presses
     if gameState.currentScreen == "menu" then
         if key == "return" then
             gameState.currentScreen = "team_select"
         elseif key == "escape" then
             love.event.quit()
         end
+
     elseif gameState.currentScreen == "settings" then
         if key == "escape" then
             gameState.currentScreen = gameState.previousScreen
+            -- Apply and save settings when leaving
+            applySettings()
+            saveSettings()
+        elseif key == "f" or key == "F" then
+            -- Toggle fullscreen
+            gameState.settings.fullscreen = not gameState.settings.fullscreen
+            applySettings()
+            saveSettings()
+        elseif key == "left" or key == "right" then
+            -- Adjust volume
+            local mouseX, mouseY = love.mouse.getPosition()
+            local centerX = love.graphics.getWidth() / 2
+            local sliderY = UIScaling.scaleY(350)  -- Adjust based on your layout
+            local sliderWidth = UIScaling.scaleX(200)
+            
+            -- Check if mouse is over master volume slider
+            if isMouseOverScaled(centerX - 100, sliderY, 200, 25) then
+                local delta = key == "left" and -0.1 or 0.1
+                gameState.settings.audio.masterVolume = math.max(0, math.min(1, 
+                    gameState.settings.audio.masterVolume + delta))
+                updateVolumes()
+                saveSettings()
+            end
+            
+            -- Check if mouse is over music volume slider
+            if isMouseOverScaled(centerX - 100, sliderY + 50, 200, 25) then
+                local delta = key == "left" and -0.1 or 0.1
+                gameState.settings.audio.musicVolume = math.max(0, math.min(1, 
+                    gameState.settings.audio.musicVolume + delta))
+                updateVolumes()
+                saveSettings()
+            end
         end
+
     elseif gameState.currentScreen == "team_select" then
-        if key == "return" then
+        if key == "return" and gameState.playerTeam then
             gameState.currentScreen = "game"
+            -- Stop menu music when entering game
             if audioState.music then
                 audioState.music:stop()
             end
+        elseif key == "escape" then
+            gameState.currentScreen = "menu"
+        elseif key == "up" or key == "down" then
+            -- Handle team selection with keyboard
+            local conferences = getTeamsByConference()
+            local currentConference = gameState.selectedConference or CONFERENCES.EAST
+            local teams = conferences[currentConference]
+            
+            if not gameState.selectedTeamIndex then
+                gameState.selectedTeamIndex = 1
+            else
+                if key == "up" then
+                    gameState.selectedTeamIndex = ((gameState.selectedTeamIndex - 2) % #teams) + 1
+                else
+                    gameState.selectedTeamIndex = (gameState.selectedTeamIndex % #teams) + 1
+                end
+            end
+            
+            gameState.playerTeam = teams[gameState.selectedTeamIndex]
+        elseif key == "left" or key == "right" then
+            -- Switch between conferences
+            gameState.selectedConference = gameState.selectedConference == CONFERENCES.EAST 
+                and CONFERENCES.WEST or CONFERENCES.EAST
+            gameState.selectedTeamIndex = 1
+            local conferences = getTeamsByConference()
+            gameState.playerTeam = conferences[gameState.selectedConference][1]
         end
+
     elseif gameState.currentScreen == "roster" then
         if key == "escape" then
             gameState.currentScreen = "game"
         end
+
     elseif gameState.currentScreen == "game" then
         if key == "space" then
             if gameState.currentWeek <= gameState.totalWeeks then
                 local weekGames = gameState.schedule[gameState.currentWeek]
                 if weekGames then
+                    -- Simulate all games for the current week
                     for _, game in ipairs(weekGames) do
                         if game and game[1] and game[2] then
                             local team1 = gameState.teams[game[1]]
@@ -603,6 +832,44 @@ function love.keypressed(key)
             end
         elseif key == "r" then
             gameState.currentScreen = "roster"
+        elseif key == "escape" then
+            -- Add confirmation dialog here if needed
+            gameState.currentScreen = "menu"
+            -- Restart menu music
+            if audioState.music then
+                audioState.music:play()
+            end
+        end
+    end
+end
+
+-- Add a new function to handle continuous keyboard input
+function love.update(dt)
+    -- Handle held keys for volume adjustment
+    if gameState.currentScreen == "settings" then
+        if love.keyboard.isDown('left') or love.keyboard.isDown('right') then
+            local delta = love.keyboard.isDown('left') and -0.5 or 0.5
+            delta = delta * dt  -- Scale by delta time for smooth adjustment
+            
+            -- Update volume based on which slider is selected
+            if gameState.selectedVolume == "master" then
+                gameState.settings.audio.masterVolume = math.max(0, math.min(1, 
+                    gameState.settings.audio.masterVolume + delta))
+            elseif gameState.selectedVolume == "music" then
+                gameState.settings.audio.musicVolume = math.max(0, math.min(1, 
+                    gameState.settings.audio.musicVolume + delta))
+            end
+            
+            updateVolumes()
+            -- Don't save settings every frame, maybe add a timer
+            if not gameState.volumeUpdateTimer then
+                gameState.volumeUpdateTimer = 0
+            end
+            gameState.volumeUpdateTimer = gameState.volumeUpdateTimer + dt
+            if gameState.volumeUpdateTimer >= 0.5 then  -- Save every half second
+                saveSettings()
+                gameState.volumeUpdateTimer = 0
+            end
         end
     end
 end
