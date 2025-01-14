@@ -1,7 +1,20 @@
-# .gitignore
-*.o
-*.a
+# Existing entries
+*.gitignore
+*.0
+*.8
 .DS_Store
 .vscode/
 love/
 *.love
+.bballsim/
+
+# Build directories
+build/
+*/build/
+**/build/
+
+# Additional build artifacts that might be created
+*.exe
+*.dll
+*.app
+*.py
