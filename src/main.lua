@@ -5,6 +5,8 @@ local Player = require 'player'
 local Team = require 'team'
 local UIScaling = require 'ui_scaling'
 
+
+
 -- Define conferences at the top level for easy reference
 local CONFERENCES = {
     EAST = "Eastern",
@@ -48,7 +50,31 @@ local audioState = {
     }
 }
 
+function isMouseOverScaled(x, y, width, height)
+    local mouseX, mouseY = love.mouse.getPosition()
+    local scaleFactorX = UIScaling.getScaleX()
+    local scaleFactorY = UIScaling.getScaleY()
+    local scaledMouseX = mouseX / scaleFactorX
+    local scaledMouseY = mouseY / scaleFactorY
 
+    -- Only print debug info for the first column to reduce spam
+    if x <= 400 then
+        print(string.format("Mouse (%.0f, %.0f) checking against box (%.0f, %.0f) to (%.0f, %.0f)", 
+            scaledMouseX, scaledMouseY, 
+            x, y,
+            x + width, y + height))
+    end
+    
+    local hitboxX = x
+    local hitboxY = y
+    local hitboxWidth = width
+    local hitboxHeight = height
+
+    return scaledMouseX >= hitboxX and 
+           scaledMouseX <= (hitboxX + hitboxWidth) and
+           scaledMouseY >= hitboxY and 
+           scaledMouseY <= (hitboxY + hitboxHeight)
+end
 
 -- Settings management functions
 local function applySettings()
@@ -294,30 +320,56 @@ function love.mousepressed(x, y, button, istouch, presses)
         end
     
     elseif gameState.currentScreen == "team_select" and button == 1 then
-        local conferences = getTeamsByConference()
-        local leftColumnX = 50
-        local rightColumnX = 400
-        local yOffset = 90
-        local teamHeight = 25
+        -- Get scale factors once at the start
+        local scaleFactorX = UIScaling.getScaleX()
+        local scaleFactorY = UIScaling.getScaleY()
         
-        -- Check Eastern Conference teams
+        -- Convert mouse coordinates to our scaled coordinate system
+        local scaledX = x / scaleFactorX
+        local scaledY = y / scaleFactorY
+        
+        local conferences = getTeamsByConference()
+        local leftX = 50        -- Left column start (unscaled)
+        local rightX = 400      -- Right column start (unscaled)
+        local startY = 90       -- Starting Y position (unscaled)
+        local teamSpacing = 25  -- Space between teams (unscaled)
+        
+        -- Eastern Conference teams
         for i, team in ipairs(conferences[CONFERENCES.EAST]) do
-            if isMouseOverScaled(leftColumnX, yOffset + (i-1)*teamHeight, 200, 20) then
+            -- Compare in unscaled coordinates
+            if scaledX >= leftX and scaledX <= leftX + 200 and
+               scaledY >= (startY + (i-1) * teamSpacing) and 
+               scaledY <= (startY + (i-1) * teamSpacing + 20) then
                 gameState.playerTeam = team
                 gameState.selectedTeamIndex = i
                 gameState.selectedConference = CONFERENCES.EAST
-                -- Don't transition immediately, let player confirm with Enter
+                print("Selected East team:", team.name)
+                -- Transition to game screen immediately after selection
+                gameState.currentScreen = "game"
+                -- Stop menu music when entering game
+                if audioState.music then
+                    audioState.music:stop()
+                end
                 break
             end
         end
         
-        -- Check Western Conference teams
+        -- Western Conference teams
         for i, team in ipairs(conferences[CONFERENCES.WEST]) do
-            if isMouseOverScaled(rightColumnX, yOffset + (i-1)*teamHeight, 200, 20) then
+            -- Compare in unscaled coordinates
+            if scaledX >= rightX and scaledX <= rightX + 200 and
+               scaledY >= (startY + (i-1) * teamSpacing) and 
+               scaledY <= (startY + (i-1) * teamSpacing + 20) then
                 gameState.playerTeam = team
                 gameState.selectedTeamIndex = i
                 gameState.selectedConference = CONFERENCES.WEST
-                -- Don't transition immediately, let player confirm with Enter
+                print("Selected West team:", team.name)
+                -- Transition to game screen immediately after selection
+                gameState.currentScreen = "game"
+                -- Stop menu music when entering game
+                if audioState.music then
+                    audioState.music:stop()
+                end
                 break
             end
         end
@@ -368,17 +420,6 @@ function love.mousepressed(x, y, button, istouch, presses)
             end
         end
     end
-end
-
-function isMouseOverScaled(x, y, width, height)
-    local mouseX, mouseY = love.mouse.getPosition()
-    local scaleFactorX = UIScaling.getScaleX()
-    local scaleFactorY = UIScaling.getScaleY()
-    local scaledMouseX = mouseX / scaleFactorX
-    local scaledMouseY = mouseY / scaleFactorY
-    
-    return scaledMouseX >= x and scaledMouseX <= x + width and
-           scaledMouseY >= y and scaledMouseY <= y + height
 end
 
 -- Add mouse drag handling for sliders
@@ -535,49 +576,68 @@ function love.draw()
         love.graphics.print(backText, backX, UIScaling.scaleY(love.graphics.getHeight() - 50))
 
     elseif gameState.currentScreen == "team_select" then
+        -- Start with white color and proper font
+        love.graphics.setColor(1, 1, 1, 1)
         love.graphics.setFont(headerFont)
-        love.graphics.print("Select your team:", UIScaling.scaleX(50), UIScaling.scaleY(30))
         
         local conferences = getTeamsByConference()
-        local leftColumnX = UIScaling.scaleX(50)
-        local rightColumnX = UIScaling.scaleX(400)
         
-        -- Conference headers
+        -- Base positions (unscaled)
+        local leftX = 50        -- Left column start
+        local rightX = 400      -- Right column start
+        local startY = 90       -- Starting Y position
+        local teamSpacing = 25  -- Space between teams
+        
+        -- Get current mouse position and scale it
+        local mouseX, mouseY = love.mouse.getPosition()
+        local scaledMouseX = mouseX / UIScaling.getScaleX()
+        local scaledMouseY = mouseY / UIScaling.getScaleY()
+
+        -- Draw conference headers
+        love.graphics.print("Eastern Conference", UIScaling.scaleX(leftX), UIScaling.scaleY(60))
+        love.graphics.print("Western Conference", UIScaling.scaleX(rightX), UIScaling.scaleY(60))
+        
+        -- Switch to normal font for team lists
         love.graphics.setFont(normalFont)
-        love.graphics.setColor(0.8, 0.8, 1)
-        love.graphics.print("Eastern Conference", leftColumnX, UIScaling.scaleY(70))
-        love.graphics.print("Western Conference", rightColumnX, UIScaling.scaleY(70))
-        love.graphics.setColor(1, 1, 1)
         
         -- Eastern Conference teams
-        local yOffset = UIScaling.scaleY(90)
-        local lineHeight = UIScaling.scaleY(25)
-        for _, team in ipairs(conferences[CONFERENCES.EAST]) do
-            if isMouseOver(leftColumnX, yOffset, UIScaling.scaleX(200), UIScaling.scaleY(20)) then
+        for i, team in ipairs(conferences[CONFERENCES.EAST]) do
+            local drawX = UIScaling.scaleX(leftX)
+            local drawY = UIScaling.scaleY(startY + (i-1) * teamSpacing)
+            
+            -- Check for mouse hover using scaled coordinates
+            if scaledMouseX >= leftX and scaledMouseX <= leftX + 200 and
+               scaledMouseY >= (startY + (i-1) * teamSpacing) and 
+               scaledMouseY <= (startY + (i-1) * teamSpacing + 20) then
                 love.graphics.setColor(0, 1, 0)
             end
+            
             love.graphics.print(string.format("%s (Overall: %d)", team.name, team.overall), 
-                leftColumnX, yOffset)
+                drawX, drawY)
             love.graphics.setColor(1, 1, 1)
-            yOffset = yOffset + lineHeight
         end
         
         -- Western Conference teams
-        yOffset = UIScaling.scaleY(90)
-        for _, team in ipairs(conferences[CONFERENCES.WEST]) do
-            if isMouseOver(rightColumnX, yOffset, UIScaling.scaleX(200), UIScaling.scaleY(20)) then
+        for i, team in ipairs(conferences[CONFERENCES.WEST]) do
+            local drawX = UIScaling.scaleX(rightX)
+            local drawY = UIScaling.scaleY(startY + (i-1) * teamSpacing)
+            
+            -- Check for mouse hover using scaled coordinates
+            if scaledMouseX >= rightX and scaledMouseX <= rightX + 200 and
+               scaledMouseY >= (startY + (i-1) * teamSpacing) and 
+               scaledMouseY <= (startY + (i-1) * teamSpacing + 20) then
                 love.graphics.setColor(0, 1, 0)
             end
+            
             love.graphics.print(string.format("%s (Overall: %d)", team.name, team.overall), 
-                rightColumnX, yOffset)
+                drawX, drawY)
             love.graphics.setColor(1, 1, 1)
-            yOffset = yOffset + lineHeight
         end
         
-        -- Settings reminder
+        -- Draw instructions at the bottom
         love.graphics.setFont(smallFont)
-        love.graphics.print("Press S for settings", UIScaling.scaleX(50), 
-            UIScaling.scaleY(love.graphics.getHeight() - 30))
+        love.graphics.print("Click on a team to select it, or press Enter to confirm selection", 
+            UIScaling.scaleX(50), UIScaling.scaleY(love.graphics.getHeight() - 30))
 
     elseif gameState.currentScreen == "game" then
         love.graphics.setFont(normalFont)

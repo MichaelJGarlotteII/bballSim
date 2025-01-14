@@ -58,7 +58,6 @@ function Player:new(name, position)
 end
 
 function Player:calculateOverall()
-    -- Calculate weighted average based on position
     local weights = {
         PG = {shooting = 0.3, defense = 0.2, playmaking = 0.3, athleticism = 0.2},
         SG = {shooting = 0.4, defense = 0.2, playmaking = 0.2, athleticism = 0.2},
@@ -71,12 +70,11 @@ function Player:calculateOverall()
     local overall = 0
     
     if posWeights then
-        overall = (
-            self.attributes.shooting * posWeights.shooting +
-            self.attributes.defense * posWeights.defense +
-            self.attributes.playmaking * posWeights.playmaking +
-            self.attributes.athleticism * posWeights.athleticism
-        ) * 100
+        overall = 
+            (self.attributes.shooting * posWeights.shooting) +
+            (self.attributes.defense * posWeights.defense) +
+            (self.attributes.playmaking * posWeights.playmaking) +
+            (self.attributes.athleticism * posWeights.athleticism)
     end
     
     return math.floor(overall)
